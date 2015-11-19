@@ -1,0 +1,19 @@
+((Penaeus_vannamei:0.140625,(Apis_mellifera:0.0625,(Photinus_pyralis:0.015625,Tabanus_catenatus:0.015625):0.046875):0.078125):0.859375,((Homo_sapiens:0.0625,(Bos_taurus:0.015625,Panthera_leo:0.015625):0.046875):0.1875,(Gopherus_polyphemus:0.015625,Gallus_gallus:0.015625):0.234375):0.75);
+
+mrca: Penaeus_vannamei, Homo_sapiens,  fixage=846.933983392;
+mrca: Penaeus_vannamei, Apis_mellifera,  fixage=597.022865782;
+mrca: Apis_mellifera, Photinus_pyralis,  fixage=346.18743131;
+mrca: Photinus_pyralis, Tabanus_catenatus,  fixage=300.53267922;
+mrca: Homo_sapiens, Gopherus_polyphemus,  fixage=320.605770542;
+mrca: Homo_sapiens, Bos_taurus,  fixage=97.43111017;
+mrca: Bos_taurus, Panthera_leo,  fixage=78.419739234;
+mrca: Gopherus_polyphemus, Gallus_gallus,  fixage=252.556752612;
+
+name of mrca:  Penaeus_vannamei, Homo_sapiens,  name=defbd45b169710c1cc400b5815eeb6f0;
+name of mrca:  Penaeus_vannamei, Apis_mellifera,  name=2520e130f92cb959c47c63b4882505d0;
+name of mrca:  Apis_mellifera, Photinus_pyralis,  name=ec24ba27d46678ff8b386030e760fc37;
+name of mrca:  Photinus_pyralis, Tabanus_catenatus,  name=a2cf79507aae2a948f38e2b63eab5fa8;
+name of mrca:  Homo_sapiens, Gopherus_polyphemus,  name=f38088b398a722d05977ea7a2d347075;
+name of mrca:  Homo_sapiens, Bos_taurus,  name=2418c04662813a05a4878305a4d53c12;
+name of mrca:  Bos_taurus, Panthera_leo,  name=02dca1a7c5a2906beda35b9f7f599f25;
+name of mrca:  Gopherus_polyphemus, Gallus_gallus,  name=affbb7064e293104edf2403241f81e5e;

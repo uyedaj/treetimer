@@ -1,0 +1,10 @@
+Photinus_pyralis
+Tabanus_catenatus
+Gopherus_polyphemus
+Bombus
+Homo_sapiens
+Bos_taurus
+Panthera_leo
+Gallus_gallus
+Apis_mellifera
+Penaeus_vannamei

@@ -1,0 +1,37 @@
+
+
+************************************************************************************************
+*  d 8   C A L C U L A T I O N                                                                 *
+************************************************************************************************
+
+Number of informative fixnodes:   8
+Number of informative minnodes:   0
+Number of informative maxnodes:   0
+
+d8 tree    : ((Penaeus_vannamei:597.022866,(Apis_mellifera:346.187431,(Photinus_pyralis:300.532679,Tabanus_catenatus:300.532679)a2cf79507aae2a948f38e2b63eab5fa8:45.654752)ec24ba27d46678ff8b386030e760fc37:250.835434)2520e130f92cb959c47c63b4882505d0:249.911118,((Homo_sapiens:97.431110,(Bos_taurus:78.419739,Panthera_leo:78.419739)02dca1a7c5a2906beda35b9f7f599f25:19.011371)2418c04662813a05a4878305a4d53c12:223.174660,(Gopherus_polyphemus:252.556753,Gallus_gallus:252.556753)affbb7064e293104edf2403241f81e5e:68.049018)f38088b398a722d05977ea7a2d347075:526.328213)defbd45b169710c1cc400b5815eeb6f0:0;
+
+
+
+************************************************************************************************
+*  M P L  C A L C U L A T I O N                                                                *
+************************************************************************************************
+
+
+Warning -- not every edge len was an integer -- no statistical test could be performed.
+           XX indicates non computable statistical data.
+
+
+Clock test confidence: XX
+Clock tests          : XX
+Accepted             : XX
+Rejected             : XX
+
+MPL tree   : ((Penaeus_vannamei:0.140625,(Apis_mellifera:0.062500,(Photinus_pyralis:0.015625,Tabanus_catenatus:0.015625)a2cf79507aae2a948f38e2b63eab5fa8:0.046875)ec24ba27d46678ff8b386030e760fc37:0.078125)2520e130f92cb959c47c63b4882505d0:0.859375,((Homo_sapiens:0.062500,(Bos_taurus:0.015625,Panthera_leo:0.015625)02dca1a7c5a2906beda35b9f7f599f25:0.046875)2418c04662813a05a4878305a4d53c12:0.187500,(Gopherus_polyphemus:0.015625,Gallus_gallus:0.015625)affbb7064e293104edf2403241f81e5e:0.234375)f38088b398a722d05977ea7a2d347075:0.750000)defbd45b169710c1cc400b5815eeb6f0:0;
+
+
+
+************************************************************************************************
+*  E N D  C A L C U L A T I O N                                                                *
+************************************************************************************************
+
+Calculation finished.
