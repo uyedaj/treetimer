@@ -1,9 +1,17 @@
 Package: treetimer
 Type: Package
-Title: What the Package Does (Title Case)
+Title: An R package for time-calibrating OpenTree phylogenies from the OpenTree of Life
 Version: 0.1
 Date: 2015-11-12
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
+Authors@R: person("Josef", "Uyeda", email="josef.uyeda@gmail.com", role=c("aut", "cre"))
 Description: More about what it does (maybe more than one line)
 License: What license is it under?
 LazyData: TRUE
+Depends:
+  ape,
+  rotl,
+  aRbor,
+  parallel,
+  phyndr
+Suggests:
+  distory
