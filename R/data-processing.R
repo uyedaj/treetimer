@@ -163,7 +163,9 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, prune=TRUE, ncores=1){
   tax <- sliceTaxonomyTable(timeslices, tree, lookupLICAs = FALSE)
   rm(ttolObject)
   dataOttTable <- getOttIds(taxalist, ncores=ncores)
-  dataLineages <- extractLineages(dataOttTable$ott_id, ncores=ncores, ottnames=taxalist)
+  missing <- setdiff(1:length(taxalist), as.numeric(rownames(dataOttTable)))
+  nas <- which(is.na(dataOttTable$ott_id))
+  dataLineages <- extractLineages(dataOttTable$ott_id, ncores=ncores, ottnames=taxalist[!(1:length(taxalist) %in% missing)])
   matchTaxonomy <- matchLineages(dataLineages, lineages, tree)
   dataTaxonomy <- resolveDataTaxonomy(matchTaxonomy, tax)
   if(prune){
@@ -195,6 +197,11 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, prune=TRUE, ncores=1){
   fakenames <- sapply(1:max(unique(unlist(fulltax))), function(x) paste(sample(LETTERS, 12,replace=TRUE), collapse=""))
   fulltax[1:ncol(fulltax)] <- apply(fulltax, 2, function(x) fakenames[x])
   #fulltax <- apply(fulltax,2,function(x){class(x) <- "character"; x})
-  phynd <- phyndr_taxonomy(ptree, taxalist, fulltax)
-  return(list(otts=dataOttTable, taxonomy=fulltax, phyndr=phynd))
+  if(!is.ultrametric(ptree)){
+    nH <- phytools::nodeHeights(ptree)
+    exte <- which(ptree$edge[,2]<=length(ptree$tip.label))
+    ptree$edge.length[exte] <- ptree$edge.length[exte] - (nH[exte,2] - min(nH[exte,2]))
+  }
+  phynd <- phyndr_taxonomy(ptree, taxalist[!((1:length(taxalist)) %in% nas)], fulltax)
+  return(list(otts=dataOttTable, taxonomy=fulltax, phyndr=phynd, missing=taxalist[missing]))
 }
