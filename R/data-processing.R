@@ -39,15 +39,15 @@ getTTOL <- function(treeNumber=2, list.only=FALSE){
 }
 
 ## # Build taxonomy for the timetree of life
-getOttIds <- function(taxalist, ncores=1){
+getOttIds <- function(taxalist, ncores=1, context=NULL){
   scipen <- options()$scipen
   digits <- options()$digits
   options("scipen"=100, "digits"=4)
   .taxalist <- gsub("_", " ", taxalist)
-  tax <- parallel::mclapply(1:length(taxalist),  function(i) try(rotl::tnrs_match_names(.taxalist[i], do_approximate_matching =FALSE)), mc.cores=ncores)
+  tax <- parallel::mclapply(1:length(taxalist),  function(i) try(rotl::tnrs_match_names(.taxalist[i], do_approximate_matching =FALSE, context_name = context)), mc.cores=ncores)
   failed <- which(sapply(tax,function(x) class(x)[1]=="try-error"))
   if(length(failed)>0){
-    tax[failed] <- parallel::mclapply(failed,  function(i) try(rotl::tnrs_match_names(.taxalist[i], do_approximate_matching =TRUE)), mc.cores=ncores)
+    tax[failed] <- parallel::mclapply(failed,  function(i) try(rotl::tnrs_match_names(.taxalist[i], do_approximate_matching =TRUE, context_name = context)), mc.cores=ncores)
   }
   stillfailed <- which(sapply(tax,function(x) class(x)[1]=="try-error"))
   if(length(stillfailed>0)){
@@ -156,16 +156,23 @@ resolveDataTaxonomy <- function(matches, taxonomy){
   res
 }
 
-phyndrTTOL <- function(ttolObject, taxalist, timeslices, prune=TRUE, ncores=1){
+phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRUE, ncores=1, infer_context=TRUE){
   tree     <- ttolObject$phy
   dat      <- ttolObject$dat
   lineages <- ttolObject$lineages
   tax <- sliceTaxonomyTable(timeslices, tree, lookupLICAs = FALSE)
   rm(ttolObject)
-  dataOttTable <- getOttIds(taxalist, ncores=ncores)
+  if(!ottids){
+    context <- rotl::tnrs_infer_context(names=taxalist)
+    dataOttTable <- getOttIds(taxalist, ncores=ncores)
+  } else {
+    dataOttTable <- data.frame("ott_id" = taxalist)
+    rownames(dataOttTable) <- 1:length(taxalist)
+  }
   missing <- setdiff(1:length(taxalist), as.numeric(rownames(dataOttTable)))
   nas <- which(is.na(dataOttTable$ott_id))
-  dataLineages <- extractLineages(dataOttTable$ott_id, ncores=ncores, ottnames=taxalist[!(1:length(taxalist) %in% missing)])
+  #if(ottids) otn <- NULL else otn <- taxalist[!(1:length(taxalist) %in% missing)]
+  dataLineages <- extractLineages(as.character(dataOttTable$ott_id), ncores=ncores, ottnames=taxalist[!(1:length(taxalist) %in% missing)])
   matchTaxonomy <- matchLineages(dataLineages, lineages, tree)
   dataTaxonomy <- resolveDataTaxonomy(matchTaxonomy, tax)
   if(prune){
