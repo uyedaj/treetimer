@@ -44,20 +44,27 @@ getOttIds <- function(taxalist, ncores=1, context=NULL){
   digits <- options()$digits
   options("scipen"=100, "digits"=4)
   .taxalist <- gsub("_", " ", taxalist)
+  .taxalist <- gsub(" sp.", "", .taxalist)
   tax <- parallel::mclapply(1:length(taxalist),  function(i) try(rotl::tnrs_match_names(.taxalist[i], do_approximate_matching =FALSE, context_name = context)), mc.cores=ncores)
   failed <- which(sapply(tax,function(x) class(x)[1]=="try-error"))
   if(length(failed)>0){
     tax[failed] <- parallel::mclapply(failed,  function(i) try(rotl::tnrs_match_names(.taxalist[i], do_approximate_matching =TRUE, context_name = context)), mc.cores=ncores)
   }
-  stillfailed <- which(sapply(tax,function(x) class(x)[1]=="try-error"))
+  stillfailed <- which(sapply(tax,function(x) if(class(x)[1]=="try-error"){TRUE} else {is.na(x$ott_id)} ))
   if(length(stillfailed>0)){
-    tax[stillfailed] <- lapply(stillfailed, function(x) data.frame(search_string=.taxalist[x], unique_name=NA, approximate_match=NA, ott_id=NA, is_synonym=NA, is_deprecated=NA, number_matches=0))
+    tax[stillfailed] <- lapply(stillfailed, function(x) data.frame(search_string=.taxalist[x], unique_name=.taxalist[x], approximate_match=NA, ott_id=NA, is_synonym=NA, is_deprecated=NA, number_matches=0))
   }
   tax <- do.call(rbind, tax)
   genspec <- unname(sapply(tax[,2], function(x) paste(strsplit(x, split=" ")[[1]][1:2],collapse=" ")))
   genspec <- gsub(" (genus", " sp.", genspec, fixed=TRUE)
   genspec <- gsub(" NA", " sp.", genspec, fixed=TRUE)
-  tax_unique <- tax[!duplicated(genspec),]
+  if(sum(duplicated(genspec))>0){
+    cat("Dropping duplicated taxa: ", paste(taxalist[duplicated(genspec)], collapse=", "), "\n")
+  }
+  if(sum(is.na(tax$ott_id))>0){
+    cat("No ott ids found for taxa: ", paste(taxalist[is.na(tax$ott_id)], collapse=", "), "\n")
+  }
+  tax_unique <- tax[!(duplicated(genspec) | is.na(tax$ott_id)),]
   tax_unique$ottids <- as.character(tax_unique$ott_id)
   options("scipen"=scipen, "digits"=digits)
   tax_unique[,1] <- gsub(" ", "_", tax_unique[,1])
@@ -156,15 +163,20 @@ resolveDataTaxonomy <- function(matches, taxonomy){
   res
 }
 
-phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRUE, ncores=1, infer_context=TRUE){
+phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRUE, ncores=1, infer_context=FALSE){
   tree     <- ttolObject$phy
   dat      <- ttolObject$dat
   lineages <- ttolObject$lineages
   tax <- sliceTaxonomyTable(timeslices, tree, lookupLICAs = FALSE)
   rm(ttolObject)
   if(!ottids){
-    context <- rotl::tnrs_infer_context(names=taxalist)
-    dataOttTable <- getOttIds(taxalist, ncores=ncores)
+    if(infer_context){
+      ctxt <- rotl::tnrs_infer_context(names=taxalist)
+      cat(paste("Inferred context: ", ctxt$context_name, sep=""))
+      dataOttTable <- getOttIds(taxalist, ncores=ncores, context=ctxt$context_name)
+    } else {
+      dataOttTable <- getOttIds(taxalist, ncores=ncores)
+    }
   } else {
     dataOttTable <- data.frame("ott_id" = taxalist)
     rownames(dataOttTable) <- 1:length(taxalist)
@@ -211,4 +223,14 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRU
   }
   phynd <- phyndr_taxonomy(ptree, taxalist[!((1:length(taxalist)) %in% nas)], fulltax)
   return(list(otts=dataOttTable, taxonomy=fulltax, phyndr=phynd, missing=taxalist[missing]))
+}
+
+getFullTree <- function(taxobj, times, ...){
+  data(ttolData)
+  ttPhynd <- phyndrTTOL(ttolData, taxobj, times, ...)
+  newTimetree <- phyndr_sample(ttPhynd$phyndr)
+  if(class(taxobj) %in% c("factor", "character")){
+    synth_tree <- rotl::tol_induced_subtree(ott_ids = ttPhynd$otts$ott_id)
+    contree <- congruify.phylo(newTimetree, tree, scale="PATHd8")
+  }
 }
