@@ -188,19 +188,21 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRU
   matchTaxonomy <- matchLineages(dataLineages, lineages, tree)
   dataTaxonomy <- resolveDataTaxonomy(matchTaxonomy, tax)
   if(prune){
-    colLICA <- min(which(apply(dataTaxonomy[,-1], 2, function(x) length(unique(x))==1)))
-    dataLICA <- unique(dataTaxonomy[, colLICA])
-    drop <- which(!(tax[,colLICA] %in% dataLICA))
+    colLICA <- suppressWarnings(min(which(apply(dataTaxonomy[,-1], 2, function(x) length(unique(x))==1))))
+    if(is.finite(colLICA)){
+      dataLICA <- unique(dataTaxonomy[, colLICA])
+      drop <- which(!(tax[,colLICA] %in% dataLICA))
     ## Loop through higher taxnomic levels not in the data taxonomy and select only one species
-    if(colLICA > 2){
-      for(j in (colLICA-1):2){
-        drop <- c(drop, which(!(tax[,j] %in% dataTaxonomy[,j]) & duplicated(tax[,j])))
+      if(colLICA > 2){
+        for(j in (colLICA-1):2){
+          drop <- c(drop, which(!(tax[,j] %in% dataTaxonomy[,j]) & duplicated(tax[,j])))
+        }
       }
-    }
-    drop <- unique(drop)
+      drop <- unique(drop)
+    } else {drop <- numeric(0)}
     if(length(drop) > 0){
-      ptree <- phyndr:::drop_tip(tree, tree$tip.label[drop])
-      ptax <- tax[-drop, ]
+        ptree <- phyndr:::drop_tip(tree, tree$tip.label[drop])
+        ptax <- tax[-drop, ]
     } else {
       ptree <- tree
       ptax <- tax
@@ -234,3 +236,33 @@ getFullTree <- function(taxobj, times, ...){
     contree <- congruify.phylo(newTimetree, tree, scale="PATHd8")
   }
 }
+
+makeReferenceTree <- function(tree, cores=1){
+  ottTable <- getOttIds(tree$tip.label, ncores=cores)
+  ottTable[,1] <- unname(sapply(gsub(" ", "_", ottTable[,1]), simpleCap))
+  td <- make.treedata(tree, ottTable)
+  ttolObject <- filter(td, !is.na(ott_id))
+  lineages <- extractLineages(as.character(td$dat$ott_id), ncores=cores, ottnames=td$phy$tip.label)
+  ttolObject$lineages <- lineages
+  return(ttolObject)
+}
+
+getCalibrations <- function(ttPhynd, scale="PATHd8", plot=TRUE){
+  ottTable <- ttPhynd$otts
+  reference <- phyndr_sample(ttPhynd$phyndr)
+  synth_tree <- rotl::tol_induced_subtree(ott_ids = ottTable$ott_id)
+  tipotts <- unname(sapply(synth_tree$tip.label, function(x) strsplit(x, split="_ott")[[1]][2]))
+  synth_tree2 <- synth_tree
+  synth_tree2$tip.label <- ottTable[match(tipotts, ottTable$ott_id),1]
+  synth_tree2$edge.length <- rep(1, nrow(synth_tree2$edge))
+  congr <- congruify.phylo(newTimetree, synth_tree2, scale="PATHd8")
+  calibrations <- congr$calibrations
+  nodes <- sapply(1:nrow(calibrations), function(x) getMRCA(congr$target, c(calibrations[x,'taxonA'], calibrations[x,'taxonB'])))
+  calibrations$nodeMRCA <- nodes
+  if(plot){
+    plot(congr$phy)
+    nodelabels(node=nodes, pch=21, bg="red")
+  }
+  return(list(calibrations = calibrations, phy=congr$phy, target=congr$target, reference=congr$reference))
+}
+
