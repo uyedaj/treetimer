@@ -52,7 +52,7 @@ getOttIds <- function(taxalist, ncores=1, context=NULL){
   }
   stillfailed <- which(sapply(tax,function(x) if(class(x)[1]=="try-error"){TRUE} else {is.na(x$ott_id)} ))
   if(length(stillfailed>0)){
-    tax[stillfailed] <- lapply(stillfailed, function(x) data.frame(search_string=.taxalist[x], unique_name=.taxalist[x], approximate_match=NA, ott_id=NA, is_synonym=NA, is_deprecated=NA, number_matches=0))
+    tax[stillfailed] <- lapply(stillfailed, function(x) data.frame(search_string=.taxalist[x], unique_name=.taxalist[x], approximate_match=NA, ott_id=NA, is_synonym=NA, flags=NA, number_matches=0))
   }
   tax <- do.call(rbind, tax)
   genspec <- unname(sapply(tax[,2], function(x) paste(strsplit(x, split=" ")[[1]][1:2],collapse=" ")))
@@ -123,9 +123,9 @@ sliceTaxonomyTable <- function(slices, tree, lookupLICAs=FALSE, ottTable=NULL){
 }
 
 ## # Create a list of lineage tables
-extractLineages <- function(ottids, ncores, ottnames=NULL){
-  .extractFromRaw <- function(raw){data.frame(do.call(rbind, lapply(raw[[1]]$taxonomic_lineage, function(x) data.frame(otName=x$'ot:ottTaxonName', rank=x$rank, ottid=x$'ot:ottId', unique_name=x$unique_name) )))}
-  lineages_raw <- mclapply(ottids, function(x) rotl::taxonomy_taxon(x, include_lineage=TRUE), mc.cores=ncores)
+extractLineages <- function(otts, ncores, ottnames=NULL){
+  .extractFromRaw <- function(raw){data.frame(do.call(rbind, lapply(raw[[1]]$lineage, function(x) data.frame(otName=x$name, rank=x$rank, ottid=x$ott_id, unique_name=x$unique_name) )))}
+  lineages_raw <- mclapply(otts, function(x) rotl::taxonomy_taxon_info(x, include_lineage=TRUE), mc.cores=ncores)
   lineageTable <- lapply(lineages_raw, .extractFromRaw)
   if(!is.null(ottnames)){
     names(lineageTable) <- ottnames
@@ -140,8 +140,8 @@ simpleCap <- function(x) {
 }
 
 
-matchLineages <- function(dataLineages, treeLineages, tree){
-  matches <- lapply(dataLineages, function(x) sapply(treeLineages, function(y) sum(x$ottid %in% y$ottid)))
+matchLineages <- function(dataLineages, treeLineages, tree, ncores=1){
+  matches <- parallel::mclapply(dataLineages, function(x) sapply(treeLineages, function(y) sum(match(x$ottid, y$ottid, nomatch=0)>0)), mc.cores=ncores)
   matchIds <- lapply(matches, function(x) which(x==max(x)))
   matchTaxa <- lapply(matchIds, function(x) tree$tip.label[x])
   names(matchTaxa) <- names(matchIds) <- names(matches) <- names(dataLineages)
@@ -163,7 +163,7 @@ resolveDataTaxonomy <- function(matches, taxonomy){
   res
 }
 
-phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRUE, ncores=1, infer_context=FALSE){
+phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRUE, ncores=1, infer_context=FALSE, context=NULL){
   tree     <- ttolObject$phy
   dat      <- ttolObject$dat
   lineages <- ttolObject$lineages
@@ -175,7 +175,7 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRU
       cat(paste("Inferred context: ", ctxt$context_name, sep=""))
       dataOttTable <- getOttIds(taxalist, ncores=ncores, context=ctxt$context_name)
     } else {
-      dataOttTable <- getOttIds(taxalist, ncores=ncores)
+      dataOttTable <- getOttIds(taxalist, ncores=ncores, context=context)
     }
   } else {
     dataOttTable <- data.frame("ott_id" = taxalist)
@@ -185,19 +185,20 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRU
   nas <- which(is.na(dataOttTable$ott_id))
   #if(ottids) otn <- NULL else otn <- taxalist[!(1:length(taxalist) %in% missing)]
   dataLineages <- extractLineages(as.character(dataOttTable$ott_id), ncores=ncores, ottnames=taxalist[!(1:length(taxalist) %in% missing)])
-  matchTaxonomy <- matchLineages(dataLineages, lineages, tree)
+  matchTaxonomy <- matchLineages(dataLineages, lineages, tree, ncores=ncores)
   dataTaxonomy <- resolveDataTaxonomy(matchTaxonomy, tax)
+  if(all(dataTaxonomy[1,2]==dataTaxonomy[,2])) stop("Less than 2 of the queried taxa are represented in the timetree and no dates can be obtained")
   if(prune){
     colLICA <- suppressWarnings(min(which(apply(dataTaxonomy[,-1], 2, function(x) length(unique(x))==1))))
-    if(is.finite(colLICA)){
-      dataLICA <- unique(dataTaxonomy[, colLICA])
-      drop <- which(!(tax[,colLICA] %in% dataLICA))
+    if(is.finite(colLICA) & colLICA != ncol(dataTaxonomy)){
+      dataLICA <- unique(dataTaxonomy[, colLICA+1])
+      drop <- which(!(tax[,colLICA+1] %in% dataLICA))
     ## Loop through higher taxnomic levels not in the data taxonomy and select only one species
-      if(colLICA > 2){
-        for(j in (colLICA-1):2){
-          drop <- c(drop, which(!(tax[,j] %in% dataTaxonomy[,j]) & duplicated(tax[,j])))
-        }
-      }
+      #if(colLICA > 2){
+      #  for(j in (colLICA-1):2){
+      #    drop <- c(drop, which(!(tax[,j] %in% dataTaxonomy[,j]) & duplicated(tax[,j])))
+      #  }
+      # }
       drop <- unique(drop)
     } else {drop <- numeric(0)}
     if(length(drop) > 0){
@@ -245,24 +246,5 @@ makeReferenceTree <- function(tree, cores=1){
   lineages <- extractLineages(as.character(td$dat$ott_id), ncores=cores, ottnames=td$phy$tip.label)
   ttolObject$lineages <- lineages
   return(ttolObject)
-}
-
-getCalibrations <- function(ttPhynd, scale="PATHd8", plot=TRUE){
-  ottTable <- ttPhynd$otts
-  reference <- phyndr_sample(ttPhynd$phyndr)
-  synth_tree <- rotl::tol_induced_subtree(ott_ids = ottTable$ott_id)
-  tipotts <- unname(sapply(synth_tree$tip.label, function(x) strsplit(x, split="_ott")[[1]][2]))
-  synth_tree2 <- synth_tree
-  synth_tree2$tip.label <- ottTable[match(tipotts, ottTable$ott_id),1]
-  synth_tree2$edge.length <- rep(1, nrow(synth_tree2$edge))
-  congr <- congruify.phylo(newTimetree, synth_tree2, scale="PATHd8")
-  calibrations <- congr$calibrations
-  nodes <- sapply(1:nrow(calibrations), function(x) getMRCA(congr$target, c(calibrations[x,'taxonA'], calibrations[x,'taxonB'])))
-  calibrations$nodeMRCA <- nodes
-  if(plot){
-    plot(congr$phy)
-    nodelabels(node=nodes, pch=21, bg="red")
-  }
-  return(list(calibrations = calibrations, phy=congr$phy, target=congr$target, reference=congr$reference))
 }
 
