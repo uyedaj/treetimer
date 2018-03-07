@@ -1,4 +1,5 @@
 ## # Download the latest version of the timetree of life
+#' @export
 getTTOL <- function(treeNumber=2, list.only=FALSE){
   timetrees <- c(
     "TTOL_all_unsmoothed",
@@ -39,12 +40,13 @@ getTTOL <- function(treeNumber=2, list.only=FALSE){
 }
 
 ## # Build taxonomy for the timetree of life
+#' @export
 getOttIds <- function(taxalist, ncores=1, context=NULL){
   scipen <- options()$scipen
   digits <- options()$digits
   options("scipen"=100, "digits"=4)
   .taxalist <- gsub("_", " ", taxalist)
-  .taxalist <- gsub(" sp.", "", .taxalist)
+  .taxalist <- gsub(" sp$", "", .taxalist)
   tax <- parallel::mclapply(1:length(taxalist),  function(i) try(rotl::tnrs_match_names(.taxalist[i], do_approximate_matching =FALSE, context_name = context)), mc.cores=ncores)
   failed <- which(sapply(tax,function(x) class(x)[1]=="try-error"))
   if(length(failed)>0){
@@ -72,6 +74,7 @@ getOttIds <- function(taxalist, ncores=1, context=NULL){
   return(tax_unique)
 }
 
+#' @export
 simpleCap <- function(x) {
   s <- strsplit(x, " ")[[1]]
   paste(toupper(substring(s, 1,1)), substring(s, 2),
@@ -92,12 +95,14 @@ simpleCap <- function(x) {
   }
 }
 
+#' @export
 getBranchesSlice <- function(slice, tree){
   nH <- .nodeHeights(tree)
   present <- unname(which(apply(nH, 1, function(x) slice > x[2] & slice < x[1])))
   return(list(branches=present, nodes=tree$edge[present,2]))
 }
 
+#' @export
 sliceTaxonomyTable <- function(slices, tree, lookupLICAs=FALSE, ottTable=NULL){
   cache <- geiger:::.prepare.bm.univariate(tree, setNames(rep(1,length(tree$tip.label)), tree$tip.label))
   TH <- max(branching.times(tree))
@@ -133,13 +138,8 @@ extractLineages <- function(otts, ncores, ottnames=NULL){
   return(lineageTable)
 }
 
-simpleCap <- function(x) {
-  s <- strsplit(x, " ")[[1]]
-  paste(toupper(substring(s, 1,1)), substring(s, 2),
-        sep="", collapse=" ")
-}
 
-
+#' @export
 matchLineages <- function(dataLineages, treeLineages, tree, ncores=1){
   matches <- parallel::mclapply(dataLineages, function(x) sapply(treeLineages, function(y) sum(match(x$ottid, y$ottid, nomatch=0)>0)), mc.cores=ncores)
   matchIds <- lapply(matches, function(x) which(x==max(x)))
@@ -148,6 +148,7 @@ matchLineages <- function(dataLineages, treeLineages, tree, ncores=1){
   return(list(taxa=matchTaxa, ids=matchIds))
 }
 
+#' @export
 resolveDataTaxonomy <- function(matches, taxonomy){
   taxonomies <- lapply(matches$ids, function(x) taxonomy[x, ])
   .simplifyTaxonomy <- function(table, tip){
@@ -163,6 +164,7 @@ resolveDataTaxonomy <- function(matches, taxonomy){
   res
 }
 
+#' @export
 phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRUE, ncores=1, infer_context=FALSE, context=NULL){
   tree     <- ttolObject$phy
   dat      <- ttolObject$dat
@@ -184,15 +186,24 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRU
   missing <- setdiff(1:length(taxalist), as.numeric(rownames(dataOttTable)))
   nas <- which(is.na(dataOttTable$ott_id))
   #if(ottids) otn <- NULL else otn <- taxalist[!(1:length(taxalist) %in% missing)]
-  dataLineages <- extractLineages(as.character(dataOttTable$ott_id), ncores=ncores, ottnames=taxalist[!(1:length(taxalist) %in% missing)])
+  exact_matches <- which(gsub(" ", "_", dataOttTable$unique_name) %in% tree$tip.label)
+  exact_tax_matches <- which(tree$tip.label %in% gsub(" ", "_", dataOttTable$unique_name))
+  exact_taxa <- gsub(" ", "_", dataOttTable$unique_name)[exact_matches]
+  exclude <- c(missing, nas, exact_matches)
+  dataLineages <- extractLineages(as.character(dataOttTable$ott_id[!(1:length(taxalist) %in% exclude)]), ncores=ncores, ottnames=taxalist[!(1:length(taxalist) %in% exclude)])
   matchTaxonomy <- matchLineages(dataLineages, lineages, tree, ncores=ncores)
   dataTaxonomy <- resolveDataTaxonomy(matchTaxonomy, tax)
-  if(all(dataTaxonomy[1,2]==dataTaxonomy[,2])) stop("Less than 2 of the queried taxa are represented in the timetree and no dates can be obtained")
+  if(all(dataTaxonomy[1,2]==dataTaxonomy[,2]) & length(exact_matches) < 2) stop("Less than 2 of the queried taxa are represented in the timetree and no dates can be obtained")
   if(prune){
-    colLICA <- suppressWarnings(min(which(apply(dataTaxonomy[,-1], 2, function(x) length(unique(x))==1))))
-    if(is.finite(colLICA) & colLICA != ncol(dataTaxonomy)){
-      dataLICA <- unique(dataTaxonomy[, colLICA+1])
+    taxlistTaxonomy <- rbind(tax[which(tax[,1] %in% exact_taxa),], dataTaxonomy)
+    colLICA <- suppressWarnings(min(which(apply(taxlistTaxonomy[,-1], 2, function(x) length(unique(x))==1))))
+    if(is.finite(colLICA) & colLICA != ncol(taxlistTaxonomy)){
+      dataLICA <- unique(taxlistTaxonomy[, colLICA+1])
       drop <- which(!(tax[,colLICA+1] %in% dataLICA))
+
+      MRUniqueRank <- max(which(apply(taxlistTaxonomy, 2, function(x) length(unique(x))==nrow(taxlistTaxonomy))))
+      drop <- c(drop, which(duplicated(tax[,MRUniqueRank])))
+      drop <- drop[!drop %in% exact_tax_matches]
     ## Loop through higher taxnomic levels not in the data taxonomy and select only one species
       #if(colLICA > 2){
       #  for(j in (colLICA-1):2){
@@ -213,6 +224,7 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRU
     ptax <- tax
   }
   fulltax <- rbind(ptax, dataTaxonomy)
+  fulltax[,1] <- gsub(" ", "_", fulltax[,1])
   fulltax <- fulltax[!duplicated(fulltax[,1]),]
   rownames(fulltax) <- fulltax[,1]
   fulltax <- fulltax[,-1]
@@ -224,10 +236,11 @@ phyndrTTOL <- function(ttolObject, taxalist, timeslices, ottids=FALSE, prune=TRU
     exte <- which(ptree$edge[,2]<=length(ptree$tip.label))
     ptree$edge.length[exte] <- ptree$edge.length[exte] - (nH[exte,2] - min(nH[exte,2]))
   }
-  phynd <- phyndr_taxonomy(ptree, taxalist[!((1:length(taxalist)) %in% nas)], fulltax)
+  phynd <- phyndr_taxonomy(ptree, gsub(" ", "_", taxalist[!((1:length(taxalist)) %in% nas)]), fulltax)
   return(list(otts=dataOttTable, taxonomy=fulltax, phyndr=phynd, missing=taxalist[missing]))
 }
 
+#' @export
 getFullTree <- function(taxobj, times, ...){
   data(ttolData)
   ttPhynd <- phyndrTTOL(ttolData, taxobj, times, ...)
@@ -238,6 +251,7 @@ getFullTree <- function(taxobj, times, ...){
   }
 }
 
+#' @export
 makeReferenceTree <- function(tree, cores=1){
   ottTable <- getOttIds(tree$tip.label, ncores=cores)
   ottTable[,1] <- unname(sapply(gsub(" ", "_", ottTable[,1]), simpleCap))
